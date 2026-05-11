@@ -1,0 +1,18 @@
+﻿ip,role,zone,segment,subnet,criticality,service,software,log_source,vulnerability
+10.10.51.133,pfSense-Snort WAN,Perimeter,External,10.10.51.0/24,Высокая,Firewall/IDS,pfSense 2.7.2 + Snort,pfSense logs / Snort alerts,
+172.16.1.1,pfSense-Snort LAN,DMZ edge,DMZ,172.16.1.0/24,Высокая,Firewall/IDS,pfSense 2.7.2 + Snort,pfSense logs / Snort alerts,
+172.16.1.2,pfSense-Suricata WAN,Internal FW,DMZ-LAN,172.16.1.0/24,Высокая,Firewall/IDS,pfSense 2.7.2 + Suricata,pfSense logs / Suricata eve.json,
+192.168.1.1,pfSense-Suricata LAN,LAN gateway,VLAN1-SERVER,192.168.1.0/24,Высокая,Gateway,pfSense 2.7.2 + Suricata,pfSense logs / Suricata eve.json,
+192.168.10.1,VLAN10 gateway,LAN gateway,VLAN10-USER,192.168.10.0/24,Высокая,Gateway,pfSense VLAN interface,pfSense logs,
+192.168.20.1,VLAN20 gateway,LAN gateway,VLAN20-ADMIN,192.168.20.0/24,Высокая,Gateway,pfSense VLAN interface,pfSense logs,
+172.16.1.10,Reverse proxy,DMZ,DMZ,172.16.1.0/24,Высокая,HTTP/HTTPS,Nginx reverse proxy,nginx access/error logs,
+172.16.1.11,Web1,DMZ,DMZ,172.16.1.0/24,Высокая,HTTP/HTTPS,Web service,web logs / WAF logs,CVE-demo-web-0001: демонстрационная уязвимость веб-компонента
+172.16.1.12,Web2,DMZ,DMZ,172.16.1.0/24,Высокая,HTTP/HTTPS,Web service,web logs / WAF logs,
+192.168.1.200,Domain Controller,LAN,VLAN1-SERVER,192.168.1.0/24,Высокая,AD/DNS/LDAP,Windows Server 2019,Windows Event Log / Security,
+192.168.1.102,File Server Debian10,LAN,VLAN1-SERVER,192.168.1.0/24,Средняя,SMB/SSH,Debian 10,auth.log / syslog / smb logs,
+192.168.1.50,NTA sensor,Monitoring,LAN,192.168.1.0/24,Средняя,NTA/NSM,Arkime,Arkime sessions,
+192.168.10.100,Windows 7 workstation,LAN,VLAN10-USER,192.168.10.0/24,Средняя,Workstation,Windows 7,Windows Event Log / Sysmon,Legacy OS: повышенный риск эксплуатации
+192.168.10.101,Windows 10 workstation,LAN,VLAN10-USER,192.168.10.0/24,Средняя,Workstation,Windows 10,Windows Event Log / Sysmon,
+192.168.20.101,Debian10 admin host,Admin,VLAN20-ADMIN,192.168.20.0/24,Средняя,Admin host,Debian 10,auth.log / syslog,
+192.168.20.102,Kali admin workstation,Admin,VLAN20-ADMIN,192.168.20.0/24,Средняя,Security workstation,Kali Linux,auth.log / command history,
+10.10.51.20,External attacker,External,Internet,10.10.51.0/24,Низкая,Attack simulation,Linux/Kali,test traffic,

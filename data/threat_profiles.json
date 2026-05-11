@@ -1,0 +1,62 @@
+{
+  "scan": {
+    "name_ru": "Сканирование",
+    "description": "Большое число уникальных портов или узлов за короткий интервал.",
+    "mitre": "T1046",
+    "features": ["unique_dst_ports", "unique_dst_ips", "denied_rate", "event_count"]
+  },
+  "bruteforce": {
+    "name_ru": "Подбор учетных данных",
+    "description": "Множественные неудачные попытки входа или перебор пользователей.",
+    "mitre": "T1110",
+    "features": ["auth_fail_count", "unique_users", "event_count"]
+  },
+  "flood": {
+    "name_ru": "Флуд-активность",
+    "description": "Резкий рост количества запросов к одному сервису.",
+    "mitre": "T1499",
+    "features": ["event_count", "http_request_count", "target_event_count"]
+  },
+  "web_probe": {
+    "name_ru": "Прощупывание веб-ресурса",
+    "description": "Много HTTP-запросов с высокой долей ошибок.",
+    "mitre": "T1595",
+    "features": ["http_request_count", "http_error_rate", "uri_examples"]
+  },
+  "suspicious_outbound": {
+    "name_ru": "Подозрительная исходящая активность",
+    "description": "Нетипичные внешние направления или большой исходящий объем данных.",
+    "mitre": "T1071",
+    "features": ["bytes_sum", "external_dst_count", "anomaly_score"]
+  },
+  "web_attack": {
+    "name_ru": "Подозрительная активность веб-сервиса",
+    "description": "HTTP-аномалии, включающие web probing, признаки SQL injection, XSS, path traversal и обращения к служебным файлам.",
+    "mitre": "T1190",
+    "features": ["http_request_count", "http_error_rate", "web_attack_pattern_count", "uri_examples"]
+  },
+  "dns_anomaly": {
+    "name_ru": "DNS-аномалия",
+    "description": "Нетипичная DNS-активность: большое число доменов, длинные поддомены, признаки DGA или DNS-туннелирования.",
+    "mitre": "T1071.004",
+    "features": ["dns_query_count", "unique_domains", "suspicious_domain_count"]
+  },
+  "lateral_movement": {
+    "name_ru": "Латеральное перемещение",
+    "description": "Нетипичные межсегментные обращения к SSH, SMB, RDP, WinRM и другим административным сервисам.",
+    "mitre": "T1021",
+    "features": ["cross_segment_count", "lateral_service_count", "unique_dst_ips"]
+  },
+  "data_exfiltration": {
+    "name_ru": "Подозрительный вывод данных",
+    "description": "Большой объем исходящего трафика во внешний сегмент или нетипичный внешний канал.",
+    "mitre": "T1041",
+    "features": ["external_bytes_sum", "external_connection_count", "bytes_sum"]
+  },
+  "malware_beaconing": {
+    "name_ru": "Признаки командного канала",
+    "description": "Повторяющиеся малые внешние соединения на нетипичные порты, характерные для beaconing/C2.",
+    "mitre": "T1071",
+    "features": ["small_external_connection_count", "external_connection_count", "dst_port"]
+  }
+}
