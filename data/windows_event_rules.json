@@ -1,0 +1,771 @@
+{
+  "bruteforce": {
+    "name_ru": "Подбор учетных данных",
+    "mitre": "T1110",
+    "event_ids": [
+      4625,
+      4771,
+      4776,
+      4740
+    ],
+    "support_event_ids": [
+      4624
+    ],
+    "fields": [
+      "event_id",
+      "SubStatus",
+      "Status",
+      "TargetUserName",
+      "IpAddress",
+      "WorkstationName",
+      "LogonType"
+    ],
+    "features": [
+      "win_logon_failed_count",
+      "win_unknown_user_count",
+      "win_wrong_password_count",
+      "win_account_locked_count",
+      "win_success_after_failures"
+    ],
+    "rules": [
+      {
+        "id": "wrong_password_threshold",
+        "event_id": 4625,
+        "field": "SubStatus",
+        "value": "0xC000006A",
+        "threshold": "brute_fails",
+        "policy": "ignore_single_wrong_password"
+      },
+      {
+        "id": "unknown_user_threshold",
+        "event_id": 4625,
+        "field": "SubStatus",
+        "value": "0xC0000064",
+        "threshold": "unknown_user_fails",
+        "policy": "strict_unknown_user_control"
+      },
+      {
+        "id": "kerberos_ntlm_failures",
+        "event_id": [
+          4771,
+          4776
+        ],
+        "threshold": "brute_fails"
+      },
+      {
+        "id": "account_lockout",
+        "event_id": 4740,
+        "threshold": 1
+      },
+      {
+        "id": "success_after_failures",
+        "event_id_sequence": [
+          4625,
+          4624
+        ],
+        "threshold": "successful_login_after_failures",
+        "policy": "detect_success_after_failures"
+      }
+    ]
+  },
+  "scan": {
+    "name_ru": "Сканирование",
+    "mitre": "T1046",
+    "event_ids": [
+      5157
+    ],
+    "support_event_ids": [
+      5152,
+      5156
+    ],
+    "sysmon_ids": [
+      3
+    ],
+    "fields": [
+      "event_id",
+      "DestinationIp",
+      "DestinationPort",
+      "SourceAddress",
+      "DestAddress",
+      "DestPort",
+      "Protocol",
+      "Image"
+    ],
+    "features": [
+      "win_unique_dst_ports",
+      "win_unique_dst_ips",
+      "win_wfp_blocked_count",
+      "win_sysmon_network_count"
+    ],
+    "rules": [
+      {
+        "id": "many_destination_ports",
+        "source": "sysmon_or_wfp",
+        "field": "DestinationPort",
+        "threshold": "scan_ports",
+        "policy": "exclude_web_ports_from_scan"
+      },
+      {
+        "id": "many_destination_hosts",
+        "source": "sysmon_or_wfp",
+        "field": "DestinationIp",
+        "threshold": "scan_hosts"
+      },
+      {
+        "id": "wfp_blocked_connections",
+        "event_id": 5157,
+        "threshold": "wfp_blocked_connections",
+        "policy": "analyze_wfp_blocked_connections"
+      },
+      {
+        "id": "wfp_blocked_packets_noisy",
+        "event_id": 5152,
+        "threshold": "wfp_blocked_packets",
+        "policy": "enable_noisy_wfp_packet_mode"
+      }
+    ]
+  },
+  "flood": {
+    "name_ru": "DDoS/флуд-активность",
+    "mitre": "T1499",
+    "event_ids": [
+      5156,
+      5157
+    ],
+    "sysmon_ids": [
+      3
+    ],
+    "fields": [
+      "event_id",
+      "DestinationIp",
+      "DestinationPort",
+      "Protocol",
+      "SourceAddress",
+      "DestAddress"
+    ],
+    "features": [
+      "win_network_event_count",
+      "win_target_event_count",
+      "win_protocol_count",
+      "win_unique_src_count"
+    ],
+    "rules": [
+      {
+        "id": "connection_volume_spike",
+        "source": "sysmon_or_wfp",
+        "threshold": "flood_connections",
+        "policy": "enable_flood_detection"
+      },
+      {
+        "id": "target_service_spike",
+        "group_by": [
+          "DestinationIp",
+          "DestinationPort"
+        ],
+        "threshold": "flood_target_events",
+        "policy": "enable_flood_detection"
+      }
+    ]
+  },
+  "web_attack": {
+    "name_ru": "Подозрительная активность веб-сервиса",
+    "mitre": "T1190",
+    "event_ids": [
+      4688
+    ],
+    "sysmon_ids": [
+      1,
+      3
+    ],
+    "fields": [
+      "event_id",
+      "ParentImage",
+      "Image",
+      "CommandLine",
+      "cs-uri-stem",
+      "cs-uri-query",
+      "sc-status"
+    ],
+    "features": [
+      "web_attack_pattern_count",
+      "http_error_rate",
+      "win_webshell_process_count",
+      "win_web_process_network_count"
+    ],
+    "rules": [
+      {
+        "id": "web_attack_uri",
+        "source": "iis_w3c",
+        "field": [
+          "cs-uri-stem",
+          "cs-uri-query"
+        ],
+        "patterns": "web_attack_patterns",
+        "policy": "enable_web_uri_analysis"
+      },
+      {
+        "id": "web_server_shell",
+        "source": "windows_or_sysmon",
+        "parent_process": "web_server_process_names",
+        "child_process": "suspicious_process_names",
+        "policy": "detect_web_server_shell"
+      }
+    ]
+  },
+  "suspicious_outbound": {
+    "name_ru": "Подозрительная исходящая активность",
+    "mitre": "T1071",
+    "event_ids": [
+      4688,
+      5156
+    ],
+    "sysmon_ids": [
+      1,
+      3
+    ],
+    "fields": [
+      "event_id",
+      "Image",
+      "ParentImage",
+      "CommandLine",
+      "DestinationIp",
+      "DestinationPort",
+      "Protocol"
+    ],
+    "features": [
+      "win_suspicious_process_count",
+      "win_suspicious_process_network_count",
+      "external_connection_count"
+    ],
+    "rules": [
+      {
+        "id": "cmd_or_powershell_external_connection",
+        "process": "suspicious_process_names",
+        "destination": "external",
+        "policy": "detect_cmd_network_activity"
+      },
+      {
+        "id": "rare_process_external_connection",
+        "source": "sysmon_or_wfp",
+        "destination": "external",
+        "threshold": "rare_outbound_connections"
+      }
+    ]
+  },
+  "data_exfiltration": {
+    "name_ru": "Подозрительный вывод данных",
+    "mitre": "T1041",
+    "event_ids": [
+      4663,
+      5140,
+      5145
+    ],
+    "sysmon_ids": [
+      3,
+      11
+    ],
+    "fields": [
+      "event_id",
+      "Accesses",
+      "ObjectName",
+      "ShareName",
+      "RelativeTargetName",
+      "TargetFilename",
+      "DestinationIp",
+      "bytes"
+    ],
+    "features": [
+      "win_file_read_count",
+      "win_smb_object_access_count",
+      "win_archive_create_count",
+      "external_bytes_sum"
+    ],
+    "rules": [
+      {
+        "id": "mass_file_read",
+        "event_id": [
+          4663,
+          5145
+        ],
+        "field": "Accesses",
+        "contains": "ReadData",
+        "threshold": "mass_file_read_events",
+        "policy": "monitor_mass_file_read"
+      },
+      {
+        "id": "archive_in_suspicious_path",
+        "sysmon_id": 11,
+        "field": "TargetFilename",
+        "extensions": "archive_extensions",
+        "paths": "suspicious_archive_paths",
+        "threshold": 1,
+        "policy": "detect_suspicious_archives"
+      }
+    ]
+  },
+  "dns_anomaly": {
+    "name_ru": "DNS-аномалия",
+    "mitre": "T1071.004",
+    "event_ids": [],
+    "sysmon_ids": [
+      22
+    ],
+    "fields": [
+      "event_id",
+      "QueryName",
+      "Image",
+      "User"
+    ],
+    "features": [
+      "dns_query_count",
+      "unique_domains",
+      "suspicious_domain_count",
+      "long_dns_query_count"
+    ],
+    "rules": [
+      {
+        "id": "long_query_name",
+        "sysmon_id": 22,
+        "field": "QueryName",
+        "min_length": "dns_query_length",
+        "policy": "enable_dns_tunneling_detection"
+      },
+      {
+        "id": "many_unique_domains",
+        "sysmon_id": 22,
+        "field": "QueryName",
+        "threshold": "dns_unique_domains",
+        "policy": "enable_dns_tunneling_detection"
+      }
+    ]
+  },
+  "malware_beaconing": {
+    "name_ru": "Признаки командного канала",
+    "mitre": "T1071",
+    "event_ids": [
+      5156
+    ],
+    "sysmon_ids": [
+      3,
+      22
+    ],
+    "fields": [
+      "event_id",
+      "UtcTime",
+      "Image",
+      "DestinationIp",
+      "DestinationPort",
+      "QueryName"
+    ],
+    "features": [
+      "beacon_connection_count",
+      "beacon_interval_std",
+      "small_external_connection_count",
+      "repeated_destination_count"
+    ],
+    "rules": [
+      {
+        "id": "periodic_external_connections",
+        "group_by": [
+          "Image",
+          "DestinationIp",
+          "DestinationPort"
+        ],
+        "threshold": "beacon_min_events",
+        "max_jitter_percent": "beacon_interval_jitter_percent",
+        "policy": "enable_beaconing_periodicity"
+      }
+    ]
+  },
+  "lateral_movement": {
+    "name_ru": "Латеральное перемещение",
+    "mitre": "T1021",
+    "event_ids": [
+      4624,
+      4648,
+      4672,
+      5140,
+      5145,
+      4697,
+      7045
+    ],
+    "sysmon_ids": [
+      1,
+      3
+    ],
+    "fields": [
+      "event_id",
+      "LogonType",
+      "IpAddress",
+      "TargetUserName",
+      "ShareName",
+      "RelativeTargetName",
+      "ServiceName",
+      "Image",
+      "CommandLine"
+    ],
+    "features": [
+      "win_rdp_logon_count",
+      "win_network_logon_count",
+      "win_explicit_credentials_count",
+      "win_smb_access_count",
+      "win_service_install_count"
+    ],
+    "rules": [
+      {
+        "id": "rdp_logon",
+        "event_id": 4624,
+        "field": "LogonType",
+        "value": 10,
+        "policy": "allow_rdp_logons"
+      },
+      {
+        "id": "network_logon",
+        "event_id": 4624,
+        "field": "LogonType",
+        "value": 3,
+        "threshold": "network_logon_events",
+        "policy": "allow_smb_rpc_access"
+      },
+      {
+        "id": "smb_access",
+        "event_id": [
+          5140,
+          5145
+        ],
+        "threshold": "smb_access_events",
+        "policy": "allow_smb_rpc_access"
+      },
+      {
+        "id": "explicit_credentials",
+        "event_id": 4648,
+        "threshold": 1
+      },
+      {
+        "id": "service_creation",
+        "event_id": [
+          4697,
+          7045
+        ],
+        "threshold": 1,
+        "policy": "detect_remote_service_creation"
+      }
+    ]
+  },
+  "audit_tampering": {
+    "name_ru": "Изменение или очистка журналов аудита",
+    "mitre": "T1070",
+    "event_ids": [
+      1102,
+      4616,
+      4719
+    ],
+    "fields": [
+      "event_id",
+      "SubjectUserName"
+    ],
+    "features": [
+      "win_audit_tampering_count"
+    ],
+    "rules": [
+      {
+        "id": "security_log_cleared",
+        "event_id": 1102,
+        "threshold": 1
+      },
+      {
+        "id": "audit_policy_changed",
+        "event_id": 4719,
+        "threshold": 1
+      },
+      {
+        "id": "system_time_changed",
+        "event_id": 4616,
+        "threshold": 1
+      }
+    ]
+  },
+  "account_change": {
+    "name_ru": "Изменение учетных записей",
+    "mitre": "T1098",
+    "event_ids": [
+      4720,
+      4722,
+      4723,
+      4724,
+      4725,
+      4726,
+      4738
+    ],
+    "fields": [
+      "event_id",
+      "TargetUserName",
+      "SubjectUserName"
+    ],
+    "features": [
+      "win_account_change_count"
+    ],
+    "rules": [
+      {
+        "id": "account_created_or_changed",
+        "event_id": [
+          4720,
+          4722,
+          4723,
+          4724,
+          4725,
+          4726,
+          4738
+        ],
+        "threshold": 1
+      }
+    ]
+  },
+  "privilege_change": {
+    "name_ru": "Изменение привилегий",
+    "mitre": "T1098",
+    "event_ids": [
+      4728,
+      4729,
+      4732,
+      4733,
+      4756,
+      4757
+    ],
+    "fields": [
+      "event_id",
+      "MemberName",
+      "TargetUserName",
+      "SubjectUserName"
+    ],
+    "features": [
+      "win_group_change_count"
+    ],
+    "rules": [
+      {
+        "id": "security_group_changed",
+        "event_id": [
+          4728,
+          4729,
+          4732,
+          4733,
+          4756,
+          4757
+        ],
+        "threshold": 1
+      }
+    ]
+  },
+  "persistence": {
+    "name_ru": "Создание службы или закрепление",
+    "mitre": "T1543.003",
+    "event_ids": [
+      4697,
+      7045
+    ],
+    "fields": [
+      "event_id",
+      "ServiceName",
+      "ServiceFileName",
+      "ImagePath"
+    ],
+    "features": [
+      "win_service_install_count"
+    ],
+    "rules": [
+      {
+        "id": "new_service",
+        "event_id": [
+          4697,
+          7045
+        ],
+        "threshold": 1,
+        "policy": "detect_remote_service_creation"
+      }
+    ]
+  },
+  "privileged_logon": {
+    "name_ru": "Привилегированный вход",
+    "mitre": "T1078",
+    "event_ids": [
+      4672
+    ],
+    "fields": [
+      "event_id",
+      "SubjectUserName",
+      "PrivilegeList"
+    ],
+    "features": [
+      "win_privileged_logon_count"
+    ],
+    "rules": [
+      {
+        "id": "special_privileges_assigned",
+        "event_id": 4672,
+        "threshold": 1
+      }
+    ]
+  },
+  "suspicious_process": {
+    "name_ru": "Подозрительный запуск процесса",
+    "mitre": "T1059",
+    "event_ids": [
+      4688
+    ],
+    "sysmon_ids": [
+      1,
+      8,
+      10
+    ],
+    "fields": [
+      "event_id",
+      "Image",
+      "ParentImage",
+      "CommandLine",
+      "NewProcessName",
+      "CreatorProcessName"
+    ],
+    "features": [
+      "win_suspicious_process_count",
+      "win_process_injection_count",
+      "win_sensitive_process_access_count"
+    ],
+    "rules": [
+      {
+        "id": "suspicious_process_name",
+        "event_id": [
+          4688
+        ],
+        "sysmon_id": [
+          1
+        ],
+        "process": "suspicious_process_names",
+        "threshold": 1
+      },
+      {
+        "id": "remote_thread",
+        "sysmon_id": 8,
+        "threshold": 1
+      },
+      {
+        "id": "sensitive_process_access",
+        "sysmon_id": 10,
+        "threshold": 1
+      }
+    ]
+  },
+  "unknown_anomaly": {
+    "name_ru": "Неизвестная аномалия",
+    "mitre": "T1082",
+    "event_ids": [],
+    "fields": [
+      "anomaly_score"
+    ],
+    "features": [
+      "anomaly_score"
+    ],
+    "rules": [
+      {
+        "id": "high_anomaly_score",
+        "field": "anomaly_score",
+        "threshold": "anomaly_threshold",
+        "policy": "show_unknown_anomalies"
+      }
+    ]
+  },
+  "_thresholds": {
+    "window_minutes": 5,
+    "brute_fails": 10,
+    "unknown_user_fails": 5,
+    "successful_login_after_failures": 5,
+    "network_logon_events": 20,
+    "smb_access_events": 15,
+    "scan_ports": 18,
+    "scan_hosts": 20,
+    "wfp_blocked_connections": 20,
+    "wfp_blocked_packets": 50,
+    "flood_connections": 120,
+    "flood_target_events": 120,
+    "dns_query_length": 60,
+    "dns_unique_domains": 20,
+    "beacon_min_events": 8,
+    "beacon_interval_jitter_percent": 20,
+    "mass_file_read_events": 50,
+    "rare_outbound_connections": 5,
+    "anomaly_threshold": 0.6
+  },
+  "_policy_options": {
+    "ignore_single_wrong_password": true,
+    "strict_unknown_user_control": false,
+    "detect_success_after_failures": true,
+    "allow_rdp_logons": false,
+    "allow_smb_rpc_access": true,
+    "detect_remote_service_creation": true,
+    "exclude_web_ports_from_scan": true,
+    "analyze_wfp_blocked_connections": true,
+    "enable_noisy_wfp_packet_mode": false,
+    "enable_web_uri_analysis": true,
+    "detect_web_server_shell": true,
+    "detect_cmd_network_activity": true,
+    "monitor_mass_file_read": true,
+    "detect_suspicious_archives": true,
+    "enable_dns_tunneling_detection": true,
+    "ignore_internal_dns_domains": true,
+    "enable_beaconing_periodicity": true,
+    "exclude_known_cloud_services": true,
+    "enable_flood_detection": true,
+    "show_unknown_anomalies": true
+  },
+  "_patterns": {
+    "suspicious_process_names": [
+      "powershell.exe",
+      "cmd.exe",
+      "wscript.exe",
+      "cscript.exe",
+      "rundll32.exe",
+      "regsvr32.exe",
+      "certutil.exe",
+      "bitsadmin.exe",
+      "mshta.exe",
+      "wmic.exe",
+      "psexec.exe",
+      "vssadmin.exe",
+      "wevtutil.exe",
+      "bcdedit.exe",
+      "net.exe",
+      "net1.exe"
+    ],
+    "web_server_process_names": [
+      "w3wp.exe",
+      "tomcat.exe",
+      "java.exe",
+      "nginx.exe",
+      "httpd.exe",
+      "apache.exe",
+      "php-cgi.exe"
+    ],
+    "archive_extensions": [
+      ".zip",
+      ".rar",
+      ".7z",
+      ".tar",
+      ".gz"
+    ],
+    "suspicious_archive_paths": [
+      "\\windows\\temp\\",
+      "\\users\\public\\",
+      "\\programdata\\",
+      "\\temp\\"
+    ],
+    "default_excluded_scan_ports": [
+      80,
+      443
+    ],
+    "default_internal_dns_suffixes": [
+      ".local",
+      ".lan",
+      ".corp",
+      ".internal"
+    ]
+  }
+}

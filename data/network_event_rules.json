@@ -1,0 +1,983 @@
+{
+  "bruteforce": {
+    "name_ru": "Подбор учетных данных",
+    "mitre": "T1110",
+    "sources": [
+      "vpn_logs",
+      "proxy_auth_logs",
+      "web_auth_logs",
+      "firewall_auth_logs",
+      "siem",
+      "ids_ips",
+      "reverse_proxy"
+    ],
+    "formats": [
+      "csv",
+      "tsv",
+      "json",
+      "jsonl",
+      "cef",
+      "leef",
+      "w3c",
+      "log"
+    ],
+    "fields": [
+      "timestamp",
+      "src_ip",
+      "dst_ip",
+      "user",
+      "username",
+      "action",
+      "outcome",
+      "status",
+      "status_code",
+      "auth_result",
+      "event_type",
+      "signature",
+      "message"
+    ],
+    "features": [
+      "auth_fail_count",
+      "unique_users",
+      "unique_src_ips",
+      "successful_login_after_failures",
+      "denied_rate",
+      "event_count"
+    ],
+    "rules": [
+      {
+        "id": "many_auth_failures",
+        "field": [
+          "action",
+          "outcome",
+          "auth_result",
+          "message"
+        ],
+        "contains": [
+          "fail",
+          "failed",
+          "failure",
+          "denied",
+          "authentication failed",
+          "login failed"
+        ],
+        "threshold": "brute_fails",
+        "policy": "detect_network_auth_bruteforce"
+      },
+      {
+        "id": "password_spraying",
+        "group_by": [
+          "src_ip"
+        ],
+        "field": "user",
+        "threshold": "spray_unique_users",
+        "policy": "detect_password_spraying"
+      },
+      {
+        "id": "success_after_failures",
+        "sequence": [
+          "auth_failure",
+          "auth_success"
+        ],
+        "threshold": "successful_login_after_failures",
+        "policy": "detect_success_after_failures"
+      }
+    ]
+  },
+  "scan": {
+    "name_ru": "Сканирование",
+    "mitre": "T1046",
+    "sources": [
+      "firewall",
+      "ids_ips",
+      "nta_ndr",
+      "netflow",
+      "ipfix",
+      "zeek_conn",
+      "suricata_eve",
+      "pfsense_filter",
+      "siem",
+      "pcap"
+    ],
+    "formats": [
+      "csv",
+      "tsv",
+      "json",
+      "jsonl",
+      "cef",
+      "leef",
+      "log",
+      "pcap",
+      "pcapng"
+    ],
+    "fields": [
+      "timestamp",
+      "src_ip",
+      "dst_ip",
+      "src_port",
+      "dst_port",
+      "protocol",
+      "action",
+      "tcp_flags",
+      "bytes",
+      "packets",
+      "duration",
+      "signature",
+      "event_type"
+    ],
+    "features": [
+      "unique_dst_ports",
+      "unique_dst_ips",
+      "denied_count",
+      "denied_rate",
+      "small_flow_count",
+      "syn_count",
+      "event_count"
+    ],
+    "rules": [
+      {
+        "id": "vertical_port_scan",
+        "group_by": [
+          "src_ip",
+          "dst_ip"
+        ],
+        "field": "dst_port",
+        "threshold": "scan_ports",
+        "policy": "detect_port_scan"
+      },
+      {
+        "id": "horizontal_host_scan",
+        "group_by": [
+          "src_ip",
+          "dst_port"
+        ],
+        "field": "dst_ip",
+        "threshold": "scan_hosts",
+        "policy": "detect_host_scan"
+      },
+      {
+        "id": "many_denied_connections",
+        "field": "action",
+        "contains": [
+          "deny",
+          "denied",
+          "drop",
+          "blocked",
+          "reject"
+        ],
+        "threshold": "denied_connections",
+        "policy": "detect_denied_scan"
+      },
+      {
+        "id": "ids_scan_signature",
+        "field": [
+          "signature",
+          "alert_signature",
+          "message"
+        ],
+        "contains": [
+          "scan",
+          "portscan",
+          "nmap",
+          "network scan"
+        ],
+        "threshold": 1,
+        "policy": "use_ids_scan_alerts"
+      }
+    ]
+  },
+  "flood": {
+    "name_ru": "DDoS/флуд-активность",
+    "mitre": "T1499",
+    "sources": [
+      "firewall",
+      "ids_ips",
+      "nta_ndr",
+      "netflow",
+      "ipfix",
+      "zeek_conn",
+      "suricata_eve",
+      "zabbix",
+      "siem",
+      "pcap"
+    ],
+    "formats": [
+      "csv",
+      "tsv",
+      "json",
+      "jsonl",
+      "cef",
+      "leef",
+      "log",
+      "pcap",
+      "pcapng"
+    ],
+    "fields": [
+      "timestamp",
+      "src_ip",
+      "dst_ip",
+      "dst_port",
+      "protocol",
+      "tcp_flags",
+      "bytes",
+      "packets",
+      "duration",
+      "flow_count",
+      "pps",
+      "bps",
+      "action",
+      "signature"
+    ],
+    "features": [
+      "target_event_count",
+      "target_unique_src",
+      "packets_sum",
+      "bytes_sum",
+      "flow_packets_per_sec_max",
+      "flow_bytes_per_sec_max",
+      "syn_count",
+      "icmp_count"
+    ],
+    "rules": [
+      {
+        "id": "target_connection_spike",
+        "group_by": [
+          "dst_ip",
+          "dst_port"
+        ],
+        "threshold": "flood_events",
+        "policy": "detect_network_flood"
+      },
+      {
+        "id": "many_sources_one_target",
+        "group_by": [
+          "dst_ip",
+          "dst_port"
+        ],
+        "field": "src_ip",
+        "threshold": "flood_unique_sources",
+        "policy": "detect_distributed_flood"
+      },
+      {
+        "id": "syn_flood",
+        "field": "tcp_flags",
+        "contains": [
+          "S",
+          "SYN"
+        ],
+        "threshold": "syn_flood_events",
+        "policy": "detect_syn_flood"
+      },
+      {
+        "id": "ids_ddos_signature",
+        "field": [
+          "signature",
+          "alert_signature",
+          "message"
+        ],
+        "contains": [
+          "ddos",
+          "dos",
+          "flood",
+          "syn flood",
+          "udp flood",
+          "icmp flood"
+        ],
+        "threshold": 1,
+        "policy": "use_ids_flood_alerts"
+      }
+    ]
+  },
+  "web_attack": {
+    "name_ru": "Подозрительная активность веб-сервиса",
+    "mitre": "T1190",
+    "sources": [
+      "nginx_access",
+      "apache_access",
+      "iis_w3c",
+      "reverse_proxy",
+      "waf",
+      "ids_ips",
+      "suricata_eve",
+      "siem"
+    ],
+    "formats": [
+      "w3c",
+      "log",
+      "csv",
+      "tsv",
+      "json",
+      "jsonl",
+      "cef",
+      "leef"
+    ],
+    "fields": [
+      "timestamp",
+      "src_ip",
+      "dst_ip",
+      "host",
+      "method",
+      "uri",
+      "url",
+      "path",
+      "query",
+      "status_code",
+      "user_agent",
+      "referer",
+      "bytes",
+      "request_time",
+      "signature",
+      "message"
+    ],
+    "features": [
+      "http_request_count",
+      "http_error_rate",
+      "web_attack_pattern_count",
+      "unique_uri_count",
+      "suspicious_user_agent_count",
+      "uri_examples"
+    ],
+    "rules": [
+      {
+        "id": "web_attack_uri_patterns",
+        "field": [
+          "uri",
+          "url",
+          "path",
+          "query",
+          "message"
+        ],
+        "patterns": "web_attack_patterns",
+        "threshold": 1,
+        "policy": "detect_web_attack_uri"
+      },
+      {
+        "id": "many_http_errors",
+        "field": "status_code",
+        "range": [
+          400,
+          599
+        ],
+        "threshold": "web_error_events",
+        "policy": "detect_web_probe_by_errors"
+      },
+      {
+        "id": "ids_web_attack_signature",
+        "field": [
+          "signature",
+          "alert_signature",
+          "message"
+        ],
+        "contains": [
+          "sql injection",
+          "xss",
+          "path traversal",
+          "webshell",
+          "rfi",
+          "lfi"
+        ],
+        "threshold": 1,
+        "policy": "use_ids_web_alerts"
+      }
+    ]
+  },
+  "suspicious_outbound": {
+    "name_ru": "Подозрительная исходящая активность",
+    "mitre": "T1071",
+    "sources": [
+      "firewall",
+      "proxy",
+      "dns",
+      "netflow",
+      "ipfix",
+      "zeek_conn",
+      "suricata_eve",
+      "nta_ndr",
+      "siem"
+    ],
+    "formats": [
+      "csv",
+      "tsv",
+      "json",
+      "jsonl",
+      "cef",
+      "leef",
+      "log"
+    ],
+    "fields": [
+      "timestamp",
+      "src_ip",
+      "dst_ip",
+      "dst_port",
+      "protocol",
+      "action",
+      "bytes",
+      "packets",
+      "duration",
+      "domain",
+      "url",
+      "category",
+      "application",
+      "direction"
+    ],
+    "features": [
+      "external_connection_count",
+      "external_dst_count",
+      "rare_dst_port_count",
+      "rare_external_dst_count",
+      "bytes_sum",
+      "denied_rate"
+    ],
+    "rules": [
+      {
+        "id": "rare_external_port",
+        "destination": "external",
+        "field": "dst_port",
+        "exclude": "common_outbound_ports",
+        "threshold": "rare_outbound_connections",
+        "policy": "detect_rare_external_ports"
+      },
+      {
+        "id": "new_external_destination",
+        "destination": "external",
+        "field": "dst_ip",
+        "threshold": "new_external_destinations",
+        "policy": "detect_new_external_destinations"
+      },
+      {
+        "id": "proxy_malware_category",
+        "field": [
+          "category",
+          "url_category",
+          "message"
+        ],
+        "contains": [
+          "malware",
+          "botnet",
+          "command and control",
+          "phishing"
+        ],
+        "threshold": 1,
+        "policy": "use_proxy_security_categories"
+      }
+    ]
+  },
+  "data_exfiltration": {
+    "name_ru": "Подозрительный вывод данных",
+    "mitre": "T1041",
+    "sources": [
+      "netflow",
+      "ipfix",
+      "firewall",
+      "proxy",
+      "zeek_conn",
+      "zeek_http",
+      "dns",
+      "nta_ndr",
+      "siem",
+      "zabbix"
+    ],
+    "formats": [
+      "csv",
+      "tsv",
+      "json",
+      "jsonl",
+      "cef",
+      "leef",
+      "log"
+    ],
+    "fields": [
+      "timestamp",
+      "src_ip",
+      "dst_ip",
+      "dst_port",
+      "protocol",
+      "bytes",
+      "bytes_out",
+      "bytes_in",
+      "packets",
+      "duration",
+      "url",
+      "domain",
+      "method",
+      "content_type",
+      "direction"
+    ],
+    "features": [
+      "external_bytes_sum",
+      "external_connection_count",
+      "bytes_sum",
+      "upload_bytes_sum",
+      "long_connection_count",
+      "dns_txt_query_count"
+    ],
+    "rules": [
+      {
+        "id": "large_external_upload",
+        "destination": "external",
+        "field": [
+          "bytes_out",
+          "bytes",
+          "upload_bytes"
+        ],
+        "threshold": "exfil_bytes",
+        "policy": "detect_large_external_upload"
+      },
+      {
+        "id": "many_external_transfers",
+        "destination": "external",
+        "threshold": "exfil_connection_count",
+        "policy": "detect_many_external_transfers"
+      },
+      {
+        "id": "dns_txt_exfil",
+        "field": "query_type",
+        "value": "TXT",
+        "threshold": "dns_txt_queries",
+        "policy": "detect_dns_txt_exfiltration"
+      }
+    ]
+  },
+  "dns_anomaly": {
+    "name_ru": "DNS-аномалия",
+    "mitre": "T1071.004",
+    "sources": [
+      "dns_server",
+      "bind",
+      "dnsmasq",
+      "zeek_dns",
+      "suricata_eve",
+      "proxy_dns",
+      "nta_ndr",
+      "siem"
+    ],
+    "formats": [
+      "log",
+      "csv",
+      "tsv",
+      "json",
+      "jsonl",
+      "cef",
+      "leef"
+    ],
+    "fields": [
+      "timestamp",
+      "src_ip",
+      "dst_ip",
+      "query_name",
+      "domain",
+      "query_type",
+      "rcode",
+      "answer",
+      "ttl",
+      "message"
+    ],
+    "features": [
+      "dns_query_count",
+      "unique_domains",
+      "suspicious_domain_count",
+      "long_dns_query_count",
+      "dns_txt_query_count",
+      "nxdomain_count"
+    ],
+    "rules": [
+      {
+        "id": "long_dns_query",
+        "field": [
+          "query_name",
+          "domain"
+        ],
+        "min_length": "dns_query_length",
+        "policy": "detect_dns_tunneling"
+      },
+      {
+        "id": "many_unique_domains",
+        "group_by": [
+          "src_ip"
+        ],
+        "field": [
+          "query_name",
+          "domain"
+        ],
+        "threshold": "dns_unique_domains",
+        "policy": "detect_dns_domain_burst"
+      },
+      {
+        "id": "many_txt_queries",
+        "field": "query_type",
+        "value": "TXT",
+        "threshold": "dns_txt_queries",
+        "policy": "detect_dns_txt_abuse"
+      },
+      {
+        "id": "many_nxdomain",
+        "field": "rcode",
+        "contains": [
+          "NXDOMAIN",
+          "3"
+        ],
+        "threshold": "dns_nxdomain_events",
+        "policy": "detect_dga_like_dns"
+      }
+    ]
+  },
+  "malware_beaconing": {
+    "name_ru": "Признаки командного канала",
+    "mitre": "T1071",
+    "sources": [
+      "netflow",
+      "ipfix",
+      "zeek_conn",
+      "zeek_dns",
+      "proxy",
+      "firewall",
+      "nta_ndr",
+      "suricata_eve",
+      "siem"
+    ],
+    "formats": [
+      "csv",
+      "tsv",
+      "json",
+      "jsonl",
+      "cef",
+      "leef",
+      "log"
+    ],
+    "fields": [
+      "timestamp",
+      "src_ip",
+      "dst_ip",
+      "dst_port",
+      "protocol",
+      "domain",
+      "url",
+      "bytes",
+      "packets",
+      "duration",
+      "user_agent"
+    ],
+    "features": [
+      "beacon_connection_count",
+      "beacon_interval_std",
+      "small_external_connection_count",
+      "repeated_destination_count",
+      "repeated_domain_count"
+    ],
+    "rules": [
+      {
+        "id": "periodic_external_connections",
+        "group_by": [
+          "src_ip",
+          "dst_ip",
+          "dst_port"
+        ],
+        "threshold": "beacon_min_events",
+        "max_jitter_percent": "beacon_interval_jitter_percent",
+        "policy": "detect_beaconing_periodicity"
+      },
+      {
+        "id": "small_repeated_external_connections",
+        "destination": "external",
+        "field": "bytes",
+        "max_value": "beacon_small_bytes",
+        "threshold": "beacon_min_events",
+        "policy": "detect_small_repeated_connections"
+      },
+      {
+        "id": "ids_c2_signature",
+        "field": [
+          "signature",
+          "alert_signature",
+          "message"
+        ],
+        "contains": [
+          "c2",
+          "command and control",
+          "beacon",
+          "botnet",
+          "callback"
+        ],
+        "threshold": 1,
+        "policy": "use_ids_c2_alerts"
+      }
+    ]
+  },
+  "lateral_movement": {
+    "name_ru": "Латеральное перемещение",
+    "mitre": "T1021",
+    "sources": [
+      "firewall",
+      "netflow",
+      "ipfix",
+      "zeek_conn",
+      "nta_ndr",
+      "ids_ips",
+      "siem"
+    ],
+    "formats": [
+      "csv",
+      "tsv",
+      "json",
+      "jsonl",
+      "cef",
+      "leef",
+      "log"
+    ],
+    "fields": [
+      "timestamp",
+      "src_ip",
+      "dst_ip",
+      "src_port",
+      "dst_port",
+      "protocol",
+      "action",
+      "bytes",
+      "packets",
+      "duration",
+      "service",
+      "direction",
+      "signature"
+    ],
+    "features": [
+      "cross_segment_count",
+      "lateral_service_count",
+      "unique_internal_dst_ips",
+      "admin_service_connection_count",
+      "east_west_connection_count"
+    ],
+    "rules": [
+      {
+        "id": "internal_admin_services",
+        "destination": "internal",
+        "field": "dst_port",
+        "values": "lateral_service_ports",
+        "threshold": "lateral_service_hits",
+        "policy": "detect_internal_admin_service_access"
+      },
+      {
+        "id": "many_internal_hosts",
+        "destination": "internal",
+        "field": "dst_ip",
+        "threshold": "lateral_unique_hosts",
+        "policy": "detect_internal_spread"
+      },
+      {
+        "id": "ids_lateral_signature",
+        "field": [
+          "signature",
+          "alert_signature",
+          "message"
+        ],
+        "contains": [
+          "psexec",
+          "smb",
+          "rdp",
+          "winrm",
+          "lateral",
+          "remote service"
+        ],
+        "threshold": 1,
+        "policy": "use_ids_lateral_alerts"
+      }
+    ]
+  },
+  "normal": {
+    "name_ru": "Нормальная активность",
+    "mitre": "-",
+    "sources": [
+      "all"
+    ],
+    "formats": [
+      "all"
+    ],
+    "fields": [
+      "timestamp",
+      "src_ip",
+      "dst_ip",
+      "domain",
+      "url",
+      "service",
+      "action"
+    ],
+    "features": [
+      "allowlist_match",
+      "trusted_domain_match",
+      "trusted_service_match"
+    ],
+    "rules": [
+      {
+        "id": "trusted_internal_service",
+        "field": [
+          "dst_ip",
+          "dst_port",
+          "domain",
+          "service"
+        ],
+        "patterns": "trusted_network_services",
+        "policy": "apply_network_allowlist"
+      },
+      {
+        "id": "trusted_cloud_service",
+        "field": [
+          "domain",
+          "url",
+          "dst_ip"
+        ],
+        "patterns": "trusted_cloud_services",
+        "policy": "ignore_trusted_cloud_services"
+      }
+    ]
+  },
+  "unknown_anomaly": {
+    "name_ru": "Неизвестная аномалия",
+    "mitre": "T1082",
+    "sources": [
+      "all"
+    ],
+    "formats": [
+      "all"
+    ],
+    "fields": [
+      "anomaly_score"
+    ],
+    "features": [
+      "anomaly_score"
+    ],
+    "rules": [
+      {
+        "id": "high_anomaly_score",
+        "field": "anomaly_score",
+        "threshold": "anomaly_threshold",
+        "policy": "show_unknown_anomalies"
+      }
+    ]
+  },
+  "_thresholds": {
+    "window_minutes": 5,
+    "brute_fails": 10,
+    "spray_unique_users": 8,
+    "successful_login_after_failures": 5,
+    "scan_ports": 18,
+    "scan_hosts": 20,
+    "denied_connections": 20,
+    "flood_events": 120,
+    "flood_unique_sources": 20,
+    "syn_flood_events": 100,
+    "web_error_events": 25,
+    "rare_outbound_connections": 5,
+    "new_external_destinations": 10,
+    "exfil_bytes": 5000000,
+    "exfil_connection_count": 15,
+    "dns_query_length": 60,
+    "dns_unique_domains": 20,
+    "dns_txt_queries": 25,
+    "dns_nxdomain_events": 20,
+    "beacon_min_events": 8,
+    "beacon_interval_jitter_percent": 20,
+    "beacon_small_bytes": 10000,
+    "lateral_service_hits": 5,
+    "lateral_unique_hosts": 10,
+    "anomaly_threshold": 0.6
+  },
+  "_policy_options": {
+    "detect_network_auth_bruteforce": true,
+    "detect_password_spraying": true,
+    "detect_success_after_failures": true,
+    "detect_port_scan": true,
+    "detect_host_scan": true,
+    "detect_denied_scan": true,
+    "use_ids_scan_alerts": true,
+    "detect_network_flood": true,
+    "detect_distributed_flood": true,
+    "detect_syn_flood": true,
+    "use_ids_flood_alerts": true,
+    "detect_web_attack_uri": true,
+    "detect_web_probe_by_errors": true,
+    "use_ids_web_alerts": true,
+    "detect_rare_external_ports": true,
+    "detect_new_external_destinations": true,
+    "use_proxy_security_categories": true,
+    "detect_large_external_upload": true,
+    "detect_many_external_transfers": true,
+    "detect_dns_txt_exfiltration": true,
+    "detect_dns_tunneling": true,
+    "detect_dns_domain_burst": true,
+    "detect_dns_txt_abuse": true,
+    "detect_dga_like_dns": true,
+    "detect_beaconing_periodicity": true,
+    "detect_small_repeated_connections": true,
+    "use_ids_c2_alerts": true,
+    "detect_internal_admin_service_access": true,
+    "detect_internal_spread": true,
+    "use_ids_lateral_alerts": true,
+    "apply_network_allowlist": true,
+    "ignore_trusted_cloud_services": true,
+    "show_unknown_anomalies": true
+  },
+  "_patterns": {
+    "web_attack_patterns": [
+      "../",
+      "..%2f",
+      "%2e%2e",
+      "union select",
+      "select%20",
+      "' or 1=1",
+      "\" or \"1\"=\"1",
+      "information_schema",
+      "<script",
+      "%3cscript",
+      "javascript:",
+      "onerror=",
+      "onload=",
+      "/etc/passwd",
+      "boot.ini",
+      ".env",
+      "wp-config.php",
+      "cmd=",
+      "exec="
+    ],
+    "common_outbound_ports": [
+      53,
+      80,
+      123,
+      443,
+      587,
+      993,
+      995
+    ],
+    "lateral_service_ports": [
+      22,
+      135,
+      139,
+      445,
+      3389,
+      5985,
+      5986
+    ],
+    "trusted_cloud_services": [
+      "microsoft.com",
+      "windowsupdate.com",
+      "office.com",
+      "google.com",
+      "gstatic.com",
+      "googleapis.com",
+      "apple.com",
+      "ubuntu.com",
+      "debian.org",
+      "redhat.com"
+    ],
+    "trusted_network_services": [
+      "dns",
+      "ntp",
+      "domain_controller",
+      "proxy",
+      "update_server"
+    ],
+    "internal_networks": [
+      "10.0.0.0/8",
+      "172.16.0.0/12",
+      "192.168.0.0/16"
+    ]
+  }
+}

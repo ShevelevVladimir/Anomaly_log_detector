@@ -1,0 +1,751 @@
+{
+  "bruteforce": {
+    "name_ru": "Подбор учетных данных",
+    "mitre": "T1110",
+    "sources": [
+      "auth.log",
+      "secure",
+      "journalctl:sshd",
+      "auditd"
+    ],
+    "markers": [
+      "Failed password",
+      "Invalid user",
+      "invalid user",
+      "authentication failure",
+      "PAM"
+    ],
+    "fields": [
+      "timestamp",
+      "host",
+      "process",
+      "user",
+      "src_ip",
+      "src_port",
+      "message"
+    ],
+    "features": [
+      "linux_ssh_failed_count",
+      "linux_ssh_invalid_user_count",
+      "linux_ssh_success_after_failures",
+      "linux_unique_users",
+      "linux_unique_src_ips"
+    ],
+    "rules": [
+      {
+        "id": "ssh_failed_password_threshold",
+        "marker": "Failed password",
+        "threshold": "brute_fails",
+        "policy": "use_ssh_password_failure_buffer"
+      },
+      {
+        "id": "ssh_invalid_user_threshold",
+        "marker": [
+          "invalid user",
+          "Invalid user",
+          "Failed password for invalid user"
+        ],
+        "threshold": "invalid_user_fails",
+        "policy": "strict_invalid_user_control"
+      },
+      {
+        "id": "ssh_success_after_failures",
+        "marker_sequence": [
+          "Failed password",
+          "Accepted password"
+        ],
+        "threshold": "successful_login_after_failures",
+        "policy": "detect_success_after_failures"
+      },
+      {
+        "id": "pam_auth_failures",
+        "marker": [
+          "authentication failure",
+          "PAM"
+        ],
+        "threshold": "brute_fails"
+      }
+    ]
+  },
+  "scan": {
+    "name_ru": "Сканирование",
+    "mitre": "T1046",
+    "sources": [
+      "syslog",
+      "kern.log",
+      "iptables",
+      "nftables",
+      "ufw.log",
+      "journalctl:kernel"
+    ],
+    "markers": [
+      "IPTABLES DROP",
+      "IPTABLES REJECT",
+      "UFW BLOCK",
+      "DROP",
+      "REJECT"
+    ],
+    "fields": [
+      "timestamp",
+      "host",
+      "src_ip",
+      "dst_ip",
+      "src_port",
+      "dst_port",
+      "protocol",
+      "message"
+    ],
+    "features": [
+      "linux_firewall_drop_count",
+      "linux_unique_dst_ports",
+      "linux_unique_dst_ips",
+      "linux_unique_src_ips"
+    ],
+    "rules": [
+      {
+        "id": "many_destination_ports",
+        "source": "firewall_log",
+        "group_by": [
+          "src_ip"
+        ],
+        "field": "dst_port",
+        "threshold": "scan_ports",
+        "policy": "analyze_linux_firewall_blocks"
+      },
+      {
+        "id": "many_destination_hosts",
+        "source": "firewall_log",
+        "group_by": [
+          "src_ip"
+        ],
+        "field": "dst_ip",
+        "threshold": "scan_hosts",
+        "policy": "analyze_linux_firewall_blocks"
+      },
+      {
+        "id": "many_blocked_packets",
+        "marker": [
+          "DROP",
+          "REJECT",
+          "UFW BLOCK"
+        ],
+        "threshold": "linux_firewall_blocked_events",
+        "policy": "analyze_linux_firewall_blocks"
+      }
+    ]
+  },
+  "flood": {
+    "name_ru": "DDoS/флуд-активность",
+    "mitre": "T1499",
+    "sources": [
+      "syslog",
+      "kern.log",
+      "dmesg",
+      "iptables",
+      "nftables",
+      "conntrack"
+    ],
+    "markers": [
+      "Possible SYN flooding",
+      "Sending cookies",
+      "nf_conntrack: table full",
+      "SYN flood"
+    ],
+    "fields": [
+      "timestamp",
+      "host",
+      "src_ip",
+      "dst_ip",
+      "dst_port",
+      "protocol",
+      "message"
+    ],
+    "features": [
+      "linux_syn_flood_warning_count",
+      "linux_conntrack_full_count",
+      "linux_network_event_count",
+      "linux_target_event_count"
+    ],
+    "rules": [
+      {
+        "id": "kernel_syn_flood_warning",
+        "marker": [
+          "Possible SYN flooding",
+          "Sending cookies"
+        ],
+        "threshold": 1,
+        "policy": "detect_kernel_syn_flood_warnings"
+      },
+      {
+        "id": "conntrack_table_full",
+        "marker": "nf_conntrack: table full",
+        "threshold": 1,
+        "policy": "detect_conntrack_overflow"
+      },
+      {
+        "id": "firewall_connection_volume_spike",
+        "source": "firewall_log",
+        "group_by": [
+          "dst_ip",
+          "dst_port"
+        ],
+        "threshold": "flood_connections",
+        "policy": "enable_linux_flood_detection"
+      }
+    ]
+  },
+  "lateral_movement": {
+    "name_ru": "Латеральное перемещение",
+    "mitre": "T1021",
+    "sources": [
+      "audit.log",
+      "auth.log",
+      "secure",
+      "journalctl:sshd"
+    ],
+    "markers": [
+      "Accepted password",
+      "Accepted publickey",
+      "USER_LOGIN",
+      "EXECVE"
+    ],
+    "audit_syscalls": [
+      "execve"
+    ],
+    "fields": [
+      "timestamp",
+      "host",
+      "user",
+      "src_ip",
+      "dst_ip",
+      "exe",
+      "cmdline",
+      "message"
+    ],
+    "features": [
+      "linux_ssh_outbound_count",
+      "linux_scp_outbound_count",
+      "linux_remote_login_count",
+      "linux_lateral_tool_exec_count"
+    ],
+    "rules": [
+      {
+        "id": "outbound_ssh_exec",
+        "audit_syscall": "execve",
+        "exe": [
+          "/usr/bin/ssh",
+          "/bin/ssh"
+        ],
+        "threshold": 1,
+        "policy": "allow_outbound_ssh_internal"
+      },
+      {
+        "id": "outbound_scp_exec",
+        "audit_syscall": "execve",
+        "exe": [
+          "/usr/bin/scp",
+          "/bin/scp",
+          "/usr/bin/rsync",
+          "/bin/rsync"
+        ],
+        "threshold": 1,
+        "policy": "allow_outbound_ssh_internal"
+      },
+      {
+        "id": "remote_ssh_login",
+        "marker": [
+          "Accepted password",
+          "Accepted publickey"
+        ],
+        "threshold": "remote_login_events",
+        "policy": "allow_inbound_ssh_logins"
+      }
+    ]
+  },
+  "web_attack": {
+    "name_ru": "Подозрительная активность веб-сервиса",
+    "mitre": "T1190",
+    "sources": [
+      "apache_access.log",
+      "nginx_access.log",
+      "audit.log",
+      "journalctl"
+    ],
+    "markers": [
+      "../",
+      "%2e%2e",
+      "union select",
+      "<script",
+      "cmd=",
+      "wget",
+      "curl"
+    ],
+    "audit_syscalls": [
+      "execve",
+      "connect"
+    ],
+    "fields": [
+      "timestamp",
+      "host",
+      "src_ip",
+      "uri",
+      "status_code",
+      "method",
+      "exe",
+      "cmdline",
+      "message"
+    ],
+    "features": [
+      "web_attack_pattern_count",
+      "http_error_rate",
+      "linux_webshell_process_count",
+      "linux_web_process_network_count"
+    ],
+    "rules": [
+      {
+        "id": "web_attack_uri",
+        "source": "web_access_log",
+        "field": [
+          "uri",
+          "message"
+        ],
+        "patterns": "web_attack_patterns",
+        "threshold": 1,
+        "policy": "enable_linux_web_uri_analysis"
+      },
+      {
+        "id": "web_server_shell_exec",
+        "audit_syscall": "execve",
+        "parent_or_user": "web_server_identities",
+        "exe": "suspicious_process_names",
+        "threshold": 1,
+        "policy": "detect_linux_web_server_shell"
+      }
+    ]
+  },
+  "suspicious_outbound": {
+    "name_ru": "Подозрительная исходящая активность",
+    "mitre": "T1071",
+    "sources": [
+      "audit.log",
+      "conntrack",
+      "syslog",
+      "journalctl"
+    ],
+    "markers": [
+      "connect",
+      "EXECVE"
+    ],
+    "audit_syscalls": [
+      "connect",
+      "execve"
+    ],
+    "fields": [
+      "timestamp",
+      "host",
+      "user",
+      "exe",
+      "cmdline",
+      "dst_ip",
+      "dst_port",
+      "protocol",
+      "message"
+    ],
+    "features": [
+      "linux_shell_network_count",
+      "linux_suspicious_process_count",
+      "linux_suspicious_process_network_count",
+      "external_connection_count"
+    ],
+    "rules": [
+      {
+        "id": "shell_connect",
+        "audit_syscall": "connect",
+        "exe": [
+          "/bin/bash",
+          "/usr/bin/bash",
+          "/bin/sh",
+          "/usr/bin/sh",
+          "/bin/dash"
+        ],
+        "destination": "external",
+        "threshold": 1,
+        "policy": "detect_shell_network_connections"
+      },
+      {
+        "id": "suspicious_tool_external_connection",
+        "audit_syscall": [
+          "connect",
+          "execve"
+        ],
+        "exe": "suspicious_process_names",
+        "destination": "external",
+        "threshold": "rare_outbound_connections"
+      }
+    ]
+  },
+  "data_exfiltration": {
+    "name_ru": "Подозрительный вывод данных",
+    "mitre": "T1041",
+    "sources": [
+      "audit.log",
+      "vsftpd.log",
+      "sftp.log",
+      "scp.log",
+      "syslog"
+    ],
+    "markers": [
+      "OK DOWNLOAD",
+      "DOWNLOAD",
+      "open",
+      "openat",
+      "EXECVE"
+    ],
+    "audit_syscalls": [
+      "open",
+      "openat",
+      "creat",
+      "execve"
+    ],
+    "fields": [
+      "timestamp",
+      "host",
+      "user",
+      "exe",
+      "path",
+      "file_name",
+      "bytes",
+      "dst_ip",
+      "message"
+    ],
+    "features": [
+      "linux_file_read_count",
+      "linux_archive_create_count",
+      "linux_file_download_count",
+      "external_bytes_sum"
+    ],
+    "rules": [
+      {
+        "id": "mass_sensitive_file_read",
+        "audit_syscall": [
+          "open",
+          "openat"
+        ],
+        "path_prefix": "sensitive_paths",
+        "threshold": "mass_file_read_events",
+        "policy": "monitor_linux_mass_file_read"
+      },
+      {
+        "id": "archive_creation_in_user_dirs",
+        "audit_syscall": "execve",
+        "exe": [
+          "tar",
+          "gzip",
+          "zip",
+          "7z",
+          "rar"
+        ],
+        "path_prefix": "user_data_paths",
+        "threshold": 1,
+        "policy": "detect_linux_suspicious_archives"
+      },
+      {
+        "id": "ftp_sftp_download_volume",
+        "marker": [
+          "OK DOWNLOAD",
+          "DOWNLOAD"
+        ],
+        "field": "bytes",
+        "threshold": "exfil_bytes",
+        "policy": "monitor_linux_file_transfer_logs"
+      }
+    ]
+  },
+  "dns_anomaly": {
+    "name_ru": "DNS-аномалия",
+    "mitre": "T1071.004",
+    "sources": [
+      "bind_query.log",
+      "named/query.log",
+      "dnsmasq.log",
+      "tshark_dns"
+    ],
+    "markers": [
+      "query",
+      "TXT",
+      "AAAA"
+    ],
+    "fields": [
+      "timestamp",
+      "host",
+      "src_ip",
+      "query_name",
+      "query_type",
+      "domain",
+      "message"
+    ],
+    "features": [
+      "dns_query_count",
+      "unique_domains",
+      "suspicious_domain_count",
+      "dns_txt_query_count",
+      "long_dns_query_count"
+    ],
+    "rules": [
+      {
+        "id": "long_query_name",
+        "field": "query_name",
+        "min_length": "dns_query_length",
+        "policy": "enable_linux_dns_tunneling_detection"
+      },
+      {
+        "id": "many_txt_queries",
+        "field": "query_type",
+        "value": "TXT",
+        "threshold": "dns_txt_queries",
+        "policy": "monitor_dns_txt_queries"
+      },
+      {
+        "id": "many_unique_domains",
+        "field": "query_name",
+        "threshold": "dns_unique_domains",
+        "policy": "enable_linux_dns_tunneling_detection"
+      }
+    ]
+  },
+  "malware_beaconing": {
+    "name_ru": "Признаки командного канала",
+    "mitre": "T1071",
+    "sources": [
+      "audit.log",
+      "conntrack",
+      "syslog",
+      "netflow"
+    ],
+    "markers": [
+      "connect"
+    ],
+    "audit_syscalls": [
+      "connect"
+    ],
+    "fields": [
+      "timestamp",
+      "host",
+      "user",
+      "exe",
+      "dst_ip",
+      "dst_port",
+      "domain",
+      "bytes",
+      "message"
+    ],
+    "features": [
+      "beacon_connection_count",
+      "beacon_interval_std",
+      "small_external_connection_count",
+      "repeated_destination_count"
+    ],
+    "rules": [
+      {
+        "id": "periodic_external_connect",
+        "audit_syscall": "connect",
+        "group_by": [
+          "exe",
+          "dst_ip",
+          "dst_port"
+        ],
+        "threshold": "beacon_min_events",
+        "max_jitter_percent": "beacon_interval_jitter_percent",
+        "policy": "enable_linux_beaconing_periodicity"
+      }
+    ]
+  },
+  "normal": {
+    "name_ru": "Нормальная активность",
+    "mitre": "-",
+    "sources": [
+      "all"
+    ],
+    "markers": [
+      "systemd",
+      "cron",
+      "anacron",
+      "apt",
+      "yum",
+      "dnf"
+    ],
+    "fields": [
+      "timestamp",
+      "host",
+      "process",
+      "user",
+      "message"
+    ],
+    "features": [
+      "allowlist_match",
+      "trusted_daemon_match"
+    ],
+    "rules": [
+      {
+        "id": "trusted_daemon_noise_filter",
+        "process": "trusted_system_daemons",
+        "policy": "ignore_system_daemon_noise"
+      },
+      {
+        "id": "trusted_update_noise_filter",
+        "process": "trusted_update_processes",
+        "policy": "ignore_os_update_noise"
+      }
+    ]
+  },
+  "unknown_anomaly": {
+    "name_ru": "Неизвестная аномалия",
+    "mitre": "T1082",
+    "sources": [
+      "all"
+    ],
+    "fields": [
+      "anomaly_score"
+    ],
+    "features": [
+      "anomaly_score"
+    ],
+    "rules": [
+      {
+        "id": "high_anomaly_score",
+        "field": "anomaly_score",
+        "threshold": "anomaly_threshold",
+        "policy": "show_unknown_anomalies"
+      }
+    ]
+  },
+  "_thresholds": {
+    "window_minutes": 5,
+    "brute_fails": 10,
+    "invalid_user_fails": 3,
+    "successful_login_after_failures": 5,
+    "remote_login_events": 10,
+    "scan_ports": 18,
+    "scan_hosts": 20,
+    "linux_firewall_blocked_events": 20,
+    "flood_connections": 120,
+    "mass_file_read_events": 50,
+    "exfil_bytes": 5000000,
+    "dns_query_length": 60,
+    "dns_unique_domains": 20,
+    "dns_txt_queries": 25,
+    "beacon_min_events": 8,
+    "beacon_interval_jitter_percent": 20,
+    "rare_outbound_connections": 5,
+    "anomaly_threshold": 0.6
+  },
+  "_policy_options": {
+    "strict_invalid_user_control": false,
+    "use_ssh_password_failure_buffer": true,
+    "detect_success_after_failures": true,
+    "allow_outbound_ssh_internal": true,
+    "allow_inbound_ssh_logins": true,
+    "analyze_linux_firewall_blocks": true,
+    "detect_shell_network_connections": true,
+    "monitor_linux_mass_file_read": true,
+    "detect_linux_suspicious_archives": true,
+    "monitor_linux_file_transfer_logs": true,
+    "enable_linux_dns_tunneling_detection": true,
+    "monitor_dns_txt_queries": true,
+    "ignore_internal_dns_domains": true,
+    "enable_linux_beaconing_periodicity": true,
+    "ignore_linux_update_repositories": true,
+    "detect_kernel_syn_flood_warnings": true,
+    "detect_conntrack_overflow": true,
+    "enable_linux_flood_detection": true,
+    "ignore_system_daemon_noise": true,
+    "ignore_os_update_noise": true,
+    "show_unknown_anomalies": true,
+    "enable_linux_web_uri_analysis": true,
+    "detect_linux_web_server_shell": true
+  },
+  "_patterns": {
+    "suspicious_process_names": [
+      "bash",
+      "sh",
+      "dash",
+      "nc",
+      "netcat",
+      "ncat",
+      "socat",
+      "curl",
+      "wget",
+      "python",
+      "python3",
+      "perl",
+      "php",
+      "ruby",
+      "lua",
+      "telnet",
+      "ssh",
+      "scp",
+      "rsync",
+      "tar",
+      "gzip",
+      "zip",
+      "7z"
+    ],
+    "web_server_identities": [
+      "www-data",
+      "apache",
+      "nginx",
+      "tomcat"
+    ],
+    "web_attack_patterns": [
+      "../",
+      "..%2f",
+      "%2e%2e",
+      "union select",
+      "select%20",
+      "<script",
+      "%3cscript",
+      "cmd=",
+      "exec=",
+      "/etc/passwd",
+      ".env",
+      "wp-config.php"
+    ],
+    "sensitive_paths": [
+      "/home/",
+      "/srv/",
+      "/var/www/",
+      "/opt/",
+      "/etc/",
+      "/root/"
+    ],
+    "user_data_paths": [
+      "/home/",
+      "/srv/",
+      "/var/www/",
+      "/tmp/",
+      "/var/tmp/"
+    ],
+    "trusted_system_daemons": [
+      "systemd",
+      "cron",
+      "crond",
+      "anacron",
+      "rsyslogd",
+      "dbus-daemon"
+    ],
+    "trusted_update_processes": [
+      "apt",
+      "apt-get",
+      "yum",
+      "dnf",
+      "snapd",
+      "unattended-upgrades"
+    ],
+    "default_internal_dns_suffixes": [
+      ".local",
+      ".lan",
+      ".corp",
+      ".internal"
+    ]
+  }
+}
